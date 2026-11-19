@@ -4,7 +4,7 @@ import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -114,8 +114,9 @@ Future<void> _initializeBackgroundServices(AppDatabase database) async {
       await reminders.initialize();
       final preferences = await SharedPreferences.getInstance();
       if (!(preferences.getBool('reminderPermissionPrompted') ?? false)) {
-        await reminders.requestPermissions();
+        final granted = await reminders.requestPermissions();
         await preferences.setBool('reminderPermissionPrompted', true);
+        await preferences.setBool('remindersAllowed', granted);
       }
     }
   } catch (error, stackTrace) {
@@ -476,6 +477,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         const SizedBox(height: 20),
         FilledButton(onPressed: _save, child: const Text('Save profile')),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Reminder permissions'),
+          subtitle: const Text(
+            'Review access if task alerts are not arriving.',
+          ),
+          trailing: TextButton(
+            onPressed: () async {
+              final service = ReminderService();
+              await service.initialize();
+              final granted = await service.requestPermissions();
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('remindersAllowed', granted);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      granted
+                          ? 'Reminder access is ready.'
+                          : 'Allow notifications and alarms in system settings.',
+                    ),
+                  ),
+                );
+              }
+            },
+            child: const Text('Review'),
+          ),
+        ),
       ],
     ),
     bottomNavigationBar: const _MainTabs(index: 3),
@@ -651,13 +680,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   children: [
                                     const Icon(Icons.format_quote, size: 28),
                                     const SizedBox(height: 6),
-                                    Expanded(child: Center(child: Text(
-                                      '“${q.quoteText}”',
-                                      textAlign: TextAlign.center,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleMedium,
-                                    ))),
+                                    Expanded(
+                                      child: Center(
+                                        child: Text(
+                                          '“${q.quoteText}”',
+                                          textAlign: TextAlign.center,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleMedium,
+                                        ),
+                                      ),
+                                    ),
                                     Row(
                                       children: [
                                         CircleAvatar(
@@ -810,6 +843,25 @@ class _TaskTile extends ConsumerWidget {
   Future<void> _setDone(BuildContext context, WidgetRef ref, bool done) async {
     final db = ref.read(databaseProvider);
     await ref.read(taskRepositoryProvider).setCompleted(task.id, done);
+    if (!kIsWeb && done) {
+      await ReminderService().cancelTaskReminder(task.id);
+    } else if (!kIsWeb) {
+      final reminders = ReminderService();
+      final prefs = await SharedPreferences.getInstance();
+      final toneId = prefs.getString('taskAlertTone_${task.id}') ?? 'classic';
+      final tone = alertTones.firstWhere(
+        (item) => item.id == toneId,
+        orElse: () => alertTones.first,
+      );
+      await reminders.scheduleTaskReminder(
+        taskId: task.id,
+        title: task.title,
+        dueAt: task.dueAt,
+        leadMinutes: task.reminderLeadMinutes,
+        withAlarm: task.alarmEnabled,
+        toneAssetPath: tone.assetPath,
+      );
+    }
     final now = DateTime.now();
     final allTasks = await db.select(db.tasks).get();
     final count = allTasks
@@ -1163,10 +1215,17 @@ class TaskCompleteScreen extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.celebration_outlined,
-            size: 76,
-            color: Color(0xFF287B70),
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: .65, end: 1),
+            duration: const Duration(milliseconds: 650),
+            curve: Curves.elasticOut,
+            builder: (context, scale, child) =>
+                Transform.scale(scale: scale, child: child),
+            child: const Icon(
+              Icons.celebration_outlined,
+              size: 76,
+              color: Color(0xFF287B70),
+            ),
           ),
           const SizedBox(height: 16),
           Text(
@@ -1399,15 +1458,36 @@ class _TaskFormScreenState extends ConsumerState<TaskFormScreen> {
   @override
   void initState() {
     super.initState();
-    _loadDefaultTone();
+    _loadTaskAndTone();
   }
 
-  Future<void> _loadDefaultTone() async {
+  Future<void> _loadTaskAndTone() async {
     final prefs = await SharedPreferences.getInstance();
-    if (mounted)
-      setState(
-        () => _toneId = prefs.getString('defaultAlertTone') ?? 'classic',
-      );
+    final taskId = widget.taskId;
+    final existing = taskId == null
+        ? null
+        : await (ref
+                  .read(databaseProvider)
+                  .select(ref.read(databaseProvider).tasks)
+                ..where((task) => task.id.equals(taskId)))
+              .getSingleOrNull();
+    if (!mounted) return;
+    setState(() {
+      _toneId =
+          prefs.getString(
+            taskId == null ? 'defaultAlertTone' : 'taskAlertTone_$taskId',
+          ) ??
+          'classic';
+      if (existing != null) {
+        _title.text = existing.title;
+        _description.text = existing.description;
+        _due = existing.dueAt;
+        _category = existing.category;
+        _priority = existing.priority;
+        _lead = existing.reminderLeadMinutes;
+        _alarm = existing.alarmEnabled;
+      }
+    });
   }
 
   @override
@@ -1419,27 +1499,47 @@ class _TaskFormScreenState extends ConsumerState<TaskFormScreen> {
 
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
-    final companion = TasksCompanion.insert(
-      title: _title.text.trim(),
-      description: Value(_description.text.trim()),
-      category: Value(_category),
-      priority: Value(_priority),
-      dueAt: _due,
-      reminderLeadMinutes: Value(_lead),
-      alarmEnabled: Value(_alarm),
-    );
-    final int id = await ref.read(taskRepositoryProvider).addTask(companion);
+    final repository = ref.read(taskRepositoryProvider);
+    final id = widget.taskId;
+    final int savedId;
+    if (id == null) {
+      final companion = TasksCompanion.insert(
+        title: _title.text.trim(),
+        description: Value(_description.text.trim()),
+        category: Value(_category),
+        priority: Value(_priority),
+        dueAt: _due,
+        reminderLeadMinutes: Value(_lead),
+        alarmEnabled: Value(_alarm),
+      );
+      savedId = await repository.addTask(companion);
+    } else {
+      await repository.updateTask(
+        TasksCompanion(
+          id: Value(id),
+          title: Value(_title.text.trim()),
+          description: Value(_description.text.trim()),
+          category: Value(_category),
+          priority: Value(_priority),
+          dueAt: Value(_due),
+          reminderLeadMinutes: Value(_lead),
+          alarmEnabled: Value(_alarm),
+        ),
+      );
+      savedId = id;
+    }
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('taskAlertTone_$id', _toneId);
+    await prefs.setString('taskAlertTone_$savedId', _toneId);
     if (!kIsWeb) {
       final reminders = ReminderService();
+      await reminders.initialize();
       await reminders.requestPermissions();
       final tone = alertTones.firstWhere(
         (item) => item.id == _toneId,
         orElse: () => alertTones.first,
       );
       await reminders.scheduleTaskReminder(
-        taskId: id,
+        taskId: savedId,
         title: _title.text.trim(),
         dueAt: _due,
         leadMinutes: _lead,
@@ -1469,13 +1569,21 @@ class _TaskFormScreenState extends ConsumerState<TaskFormScreen> {
           const SizedBox(height: 10),
           TextFormField(
             controller: _title,
-            decoration: const InputDecoration(labelText: 'Task title', prefixIcon: Icon(Icons.edit_note), border: OutlineInputBorder()),
+            decoration: const InputDecoration(
+              labelText: 'Task title',
+              prefixIcon: Icon(Icons.edit_note),
+              border: OutlineInputBorder(),
+            ),
             validator: (v) =>
                 (v == null || v.trim().isEmpty) ? 'Enter a title' : null,
           ),
           TextFormField(
             controller: _description,
-            decoration: const InputDecoration(labelText: 'Description', prefixIcon: Icon(Icons.notes), border: OutlineInputBorder()),
+            decoration: const InputDecoration(
+              labelText: 'Description',
+              prefixIcon: Icon(Icons.notes),
+              border: OutlineInputBorder(),
+            ),
             maxLines: 3,
           ),
           const SizedBox(height: 12),
@@ -1492,7 +1600,10 @@ class _TaskFormScreenState extends ConsumerState<TaskFormScreen> {
             onChanged: (v) => setState(() => _category = v ?? 'General'),
           ),
           const SizedBox(height: 12),
-          Text('Schedule & reminders', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            'Schedule & reminders',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             initialValue: _priority,
@@ -1508,7 +1619,9 @@ class _TaskFormScreenState extends ConsumerState<TaskFormScreen> {
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Due date and time'),
-            subtitle: Text('${_due.toLocal()}'),
+            subtitle: Text(
+              '${MaterialLocalizations.of(context).formatMediumDate(_due)} • ${TimeOfDay.fromDateTime(_due).format(context)}',
+            ),
             trailing: const Icon(Icons.calendar_month),
             onTap: () async {
               final d = await showDatePicker(
@@ -1541,6 +1654,28 @@ class _TaskFormScreenState extends ConsumerState<TaskFormScreen> {
                 .toList(),
             onChanged: (v) => setState(() => _lead = v ?? 15),
           ),
+          Builder(
+            builder: (context) {
+              final alertAt = _due.subtract(Duration(minutes: _lead));
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  Icons.notifications_active_outlined,
+                  color: alertAt.isBefore(DateTime.now())
+                      ? Theme.of(context).colorScheme.error
+                      : null,
+                ),
+                title: Text(
+                  'Alert time: ${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(alertAt))}',
+                ),
+                subtitle: alertAt.isBefore(DateTime.now())
+                    ? const Text(
+                        'This alert time has already passed. Choose a later deadline or shorter reminder lead.',
+                      )
+                    : null,
+              );
+            },
+          ),
           Row(
             children: [
               Expanded(
@@ -1568,7 +1703,11 @@ class _TaskFormScreenState extends ConsumerState<TaskFormScreen> {
             onChanged: (v) => setState(() => _alarm = v),
           ),
           const SizedBox(height: 24),
-          FilledButton.icon(onPressed: _save, icon: const Icon(Icons.check), label: const Text('Save task')),
+          FilledButton.icon(
+            onPressed: _save,
+            icon: const Icon(Icons.check),
+            label: const Text('Save task'),
+          ),
         ],
       ),
     ),
