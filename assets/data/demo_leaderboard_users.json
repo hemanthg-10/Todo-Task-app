@@ -1,0 +1,164 @@
+[
+  {
+    "id": "maya",
+    "name": "Maya Patel",
+    "currentStreak": 18,
+    "longestStreak": 24,
+    "totalCompleted": 436,
+    "totalPoints": 2440,
+    "avatarAsset": ""
+  },
+  {
+    "id": "leo",
+    "name": "Leo Martin",
+    "currentStreak": 12,
+    "longestStreak": 14,
+    "totalCompleted": 291,
+    "totalPoints": 1690,
+    "avatarAsset": ""
+  },
+  {
+    "id": "amara",
+    "name": "Amara Okafor",
+    "currentStreak": 27,
+    "longestStreak": 31,
+    "totalCompleted": 612,
+    "totalPoints": 3440,
+    "avatarAsset": ""
+  },
+  {
+    "id": "noah",
+    "name": "Noah Kim",
+    "currentStreak": 9,
+    "longestStreak": 13,
+    "totalCompleted": 208,
+    "totalPoints": 1210,
+    "avatarAsset": ""
+  },
+  {
+    "id": "ines",
+    "name": "Ines Costa",
+    "currentStreak": 21,
+    "longestStreak": 25,
+    "totalCompleted": 503,
+    "totalPoints": 2840,
+    "avatarAsset": ""
+  },
+  {
+    "id": "arjun",
+    "name": "Arjun Rao",
+    "currentStreak": 15,
+    "longestStreak": 20,
+    "totalCompleted": 377,
+    "totalPoints": 2190,
+    "avatarAsset": ""
+  },
+  {
+    "id": "sofia",
+    "name": "Sofia Alvarez",
+    "currentStreak": 32,
+    "longestStreak": 39,
+    "totalCompleted": 741,
+    "totalPoints": 4170,
+    "avatarAsset": ""
+  },
+  {
+    "id": "eli",
+    "name": "Eli Brooks",
+    "currentStreak": 6,
+    "longestStreak": 9,
+    "totalCompleted": 147,
+    "totalPoints": 880,
+    "avatarAsset": ""
+  },
+  {
+    "id": "hana",
+    "name": "Hana Sato",
+    "currentStreak": 24,
+    "longestStreak": 28,
+    "totalCompleted": 556,
+    "totalPoints": 3140,
+    "avatarAsset": ""
+  },
+  {
+    "id": "owen",
+    "name": "Owen Clark",
+    "currentStreak": 11,
+    "longestStreak": 16,
+    "totalCompleted": 264,
+    "totalPoints": 1520,
+    "avatarAsset": ""
+  },
+  {
+    "id": "zara",
+    "name": "Zara Hassan",
+    "currentStreak": 19,
+    "longestStreak": 22,
+    "totalCompleted": 462,
+    "totalPoints": 2630,
+    "avatarAsset": ""
+  },
+  {
+    "id": "lucas",
+    "name": "Lucas Silva",
+    "currentStreak": 8,
+    "longestStreak": 12,
+    "totalCompleted": 188,
+    "totalPoints": 1100,
+    "avatarAsset": ""
+  },
+  {
+    "id": "priya",
+    "name": "Priya Nair",
+    "currentStreak": 36,
+    "longestStreak": 42,
+    "totalCompleted": 823,
+    "totalPoints": 4620,
+    "avatarAsset": ""
+  },
+  {
+    "id": "theo",
+    "name": "Theo James",
+    "currentStreak": 14,
+    "longestStreak": 18,
+    "totalCompleted": 329,
+    "totalPoints": 1920,
+    "avatarAsset": ""
+  },
+  {
+    "id": "nina",
+    "name": "Nina Petrova",
+    "currentStreak": 22,
+    "longestStreak": 29,
+    "totalCompleted": 518,
+    "totalPoints": 2950,
+    "avatarAsset": ""
+  },
+  {
+    "id": "sam",
+    "name": "Sam Wilson",
+    "currentStreak": 5,
+    "longestStreak": 7,
+    "totalCompleted": 126,
+    "totalPoints": 740,
+    "avatarAsset": ""
+  },
+  {
+    "id": "fatima",
+    "name": "Fatima Ali",
+    "currentStreak": 29,
+    "longestStreak": 34,
+    "totalCompleted": 680,
+    "totalPoints": 3820,
+    "avatarAsset": ""
+  },
+  {
+    "id": "jack",
+    "name": "Jack Morgan",
+    "currentStreak": 10,
+    "longestStreak": 15,
+    "totalCompleted": 237,
+    "totalPoints": 1380,
+    "avatarAsset": ""
+  }
+]
